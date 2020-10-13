@@ -1,0 +1,73 @@
+[package]
+authors = ["Michael Nitschinger <michael@nitschinger.at>"]
+name = "controller"
+edition = "2018"
+version = "0.1.0"
+
+[dependencies.defmt]
+git = "https://github.com/knurling-rs/defmt"
+branch = "main"
+
+[dependencies.defmt-rtt]
+git = "https://github.com/knurling-rs/defmt"
+branch = "main"
+
+[dependencies]
+embedded-hal = "0.2"
+nb = "1.0"
+cortex-m = "0.6.3"
+cortex-m-rt = "0.6.12"
+cortex-m-rtic = "0.5"
+nrf52840-hal = { git = "https://github.com/nrf-rs/nrf-hal.git", branch = "master" }
+tsic = "0.2"
+micromath = "1.1"
+rubble = { git = "https://github.com/daschl/rubble", branch = "mut_attrs" }
+rubble-nrf5x = { git = "https://github.com/daschl/rubble", branch = "mut_attrs", features = ["52840"] }
+
+[features]
+# set logging levels here
+default = [
+  "defmt-default",
+  # "dependency-a/defmt-trace",
+]
+
+# do NOT modify these features
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []
+
+[profile.dev]
+codegen-units = 1
+debug = 2
+debug-assertions = true # <-
+incremental = false
+lto = 'fat'
+opt-level = 3 # <-
+overflow-checks = true # <-
+
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false # <-
+incremental = false
+lto = 'fat'
+opt-level = 3 # <-
+overflow-checks = false # <-
+
+# do not optimize proc-macro crates = faster builds from scratch
+[profile.dev.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
+
+[profile.release.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
