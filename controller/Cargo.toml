@@ -23,6 +23,7 @@ tsic = "0.2"
 micromath = "1.1"
 rubble = { git = "https://github.com/daschl/rubble", branch = "mut_attrs" }
 rubble-nrf5x = { git = "https://github.com/daschl/rubble", branch = "mut_attrs", features = ["52840"] }
+pid = "2.1"
 
 [features]
 # set logging levels here

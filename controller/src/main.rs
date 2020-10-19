@@ -1,5 +1,5 @@
 #![no_main]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 mod peripherals;
 
@@ -10,17 +10,18 @@ use nrf52840_hal as _MemoryLayout;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 use nrf52840_hal::clocks::{Clocks, HFCLK_FREQ as CPU_FREQ};
-use nrf52840_hal::gpio::{p1, Level};
+use nrf52840_hal::gpio::{p0, p1, Level};
 use nrf52840_hal::pac::TIMER1;
 use nrf52840_hal::Timer;
 use peripherals::bluetooth::Bluetooth;
 use peripherals::boiler::Boiler;
+use peripherals::heater::{Heater, HeaterConfig};
 use rtic::cyccnt::U32Ext;
 use rubble::link::queue::SimpleQueue;
 use rubble::link::MIN_PDU_BUF;
 use rubble_nrf5x::radio::PacketBuffer;
 
-const TEMP_MEASURE_PERIOD: u32 = CPU_FREQ; // 1s => CPU runs at 64 mhz
+const ONE_SECOND: u32 = CPU_FREQ; // 1s => CPU runs at 64 mhz
 
 #[rtic::app(device = nrf52840_hal::pac, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -36,9 +37,10 @@ const APP: () = {
         bluetooth: Bluetooth,
         boiler: Boiler,
         boiler_timer: Timer<TIMER1>,
+        heater: Heater,
     }
 
-    #[init(schedule = [boiler_measure_temperature], resources = [ble_tx_buf, ble_rx_buf, tx_queue, rx_queue])]
+    #[init(spawn = [boiler_measure_temperature], resources = [ble_tx_buf, ble_rx_buf, tx_queue, rx_queue])]
     fn init(mut ctx: init::Context) -> init::LateResources {
         // Preparations Needed for Bluetooth
         let _ = Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
@@ -49,6 +51,10 @@ const APP: () = {
         let port1 = p1::Parts::new(ctx.device.P1);
         let sensor_vdd = port1.p1_07.into_push_pull_output(Level::Low).degrade();
         let sensor_signal = port1.p1_08.into_floating_input().degrade();
+
+        // Heater Setup
+        let port0 = p0::Parts::new(ctx.device.P0);
+        let heater_signal = port0.p0_10.into_push_pull_output(Level::Low).degrade();
 
         // Bluetooth Setup
         let bluetooth = Bluetooth::new(
@@ -61,14 +67,15 @@ const APP: () = {
             ctx.resources.rx_queue,
         );
 
-        ctx.schedule
-            .boiler_measure_temperature(ctx.start + TEMP_MEASURE_PERIOD.cycles())
-            .unwrap();
+        ctx.spawn.boiler_measure_temperature().unwrap();
+
+        let heater_config = HeaterConfig::new(96.0, 1.0, 0.0, 0.0);
 
         init::LateResources {
             boiler: Boiler::new(sensor_signal, sensor_vdd),
             bluetooth,
             boiler_timer: Timer::new(ctx.device.TIMER1),
+            heater: Heater::new(heater_signal, heater_config),
         }
     }
 
@@ -95,21 +102,32 @@ const APP: () = {
         });
     }
 
-    #[task(resources = [bluetooth, boiler, boiler_timer], priority = 2, schedule = [boiler_measure_temperature])]
+    #[task(schedule = [bluetooth_update_attrs])]
+    fn bluetooth_update_attrs(ctx: bluetooth_update_attrs::Context) {
+        // TODO: Fetch all resources and update the bluetooth attrs
+
+        ctx.schedule
+            .bluetooth_update_attrs(ctx.scheduled + ONE_SECOND.cycles())
+            .unwrap();
+    }
+
+    #[task(resources = [bluetooth, boiler, boiler_timer, heater], priority = 2, schedule = [boiler_measure_temperature])]
     fn boiler_measure_temperature(ctx: boiler_measure_temperature::Context) {
         if let Ok(t) = ctx
             .resources
             .boiler
             .read_temperature(ctx.resources.boiler_timer)
         {
-            defmt::info!("Temp is: {:u16}", t);
-        // todo: update the bluetooth gattr temp characteristic
+            let heater_on = ctx.resources.heater.control(t).ok().unwrap();
+            defmt::info!("Temp is: {:f32}, Heater on: {:bool}", t, heater_on);
         } else {
-            defmt::warn!("Failed to perform boiler temperature reading");
+            defmt::warn!("Temp read failed");
+            // Turn the heater off until we get a good new reading for safety reasons.
+            ctx.resources.heater.turn_heater_off().ok();
         }
 
         ctx.schedule
-            .boiler_measure_temperature(ctx.scheduled + TEMP_MEASURE_PERIOD.cycles())
+            .boiler_measure_temperature(ctx.scheduled + ONE_SECOND.cycles())
             .unwrap();
     }
 

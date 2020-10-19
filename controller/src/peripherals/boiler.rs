@@ -1,11 +1,10 @@
 //! Encapsulates the Boiler Peripheral
 
 use embedded_hal::blocking::delay::DelayUs;
-use micromath::F32Ext;
 use nrf52840_hal::gpio::{Floating, Input, Output, Pin, PushPull};
 use tsic::{SensorType, Tsic, TsicError};
 
-pub type BoilerTemperature = u16;
+pub type BoilerTemperature = f32;
 
 pub struct Boiler {
     temp_sensor: Tsic<Pin<Input<Floating>>, Pin<Output<PushPull>>>,
@@ -27,7 +26,7 @@ impl Boiler {
     ) -> Result<BoilerTemperature, BoilerError> {
         match self.temp_sensor.read(delay) {
             Ok(t) => {
-                let rounded = t.as_celsius().round() as BoilerTemperature;
+                let rounded = t.as_celsius() as BoilerTemperature;
                 self.last_temp = Some(rounded);
                 Ok(rounded)
             }
