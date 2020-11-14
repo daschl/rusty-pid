@@ -4,14 +4,6 @@ name = "controller"
 edition = "2018"
 version = "0.1.0"
 
-[dependencies.defmt]
-git = "https://github.com/knurling-rs/defmt"
-rev = "be7f4a7cbe"
-
-[dependencies.defmt-rtt]
-git = "https://github.com/knurling-rs/defmt"
-rev = "be7f4a7cbe"
-
 [dependencies]
 embedded-hal = "0.2"
 nb = "1.0"
@@ -20,12 +12,16 @@ cortex-m-rtic = "0.5"
 nrf52840-hal = { git = "https://github.com/nrf-rs/nrf-hal.git", branch = "master" }
 tsic = "0.2"
 micromath = "1.1"
-rubble = { git = "https://github.com/daschl/rubble", branch = "mut_attrs" }
-rubble-nrf5x = { git = "https://github.com/daschl/rubble", branch = "mut_attrs", features = ["52840"] }
 pid = "2.1"
 ssd1351 = "0.2"
-embedded-graphics = "0.4"
+ili9341 = "0.4"
+embedded-graphics = "0.6"
+display-interface = "0.4.0"
+display-interface-spi = "0.4.0"
 heapless = "0.5"
+defmt = "0.1.0"
+defmt-rtt = "0.1.0"
+panic-probe = { version = "0.1.0", features = ["print-defmt"] }
 
 [features]
 # set logging levels here
@@ -33,8 +29,6 @@ default = [
   "defmt-default",
   # "dependency-a/defmt-trace",
 ]
-board-dk = []
-board-bluefruit = []
 
 # do NOT modify these features
 defmt-default = []

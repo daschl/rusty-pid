@@ -1,4 +1,7 @@
+use defmt::Format;
+
 /// Holds the State for the application.
+#[derive(Format)]
 pub struct State {
     current_boiler_temp: f32,
     target_boiler_temp: f32,
@@ -6,10 +9,18 @@ pub struct State {
     kp: f32,
     ki: f32,
     kd: f32,
+    coldstart: bool,
 }
 
 impl State {
-    pub fn new(target_boiler_temp: f32, heater_on: bool, kp: f32, ki: f32, kd: f32) -> Self {
+    pub fn new(
+        target_boiler_temp: f32,
+        heater_on: bool,
+        kp: f32,
+        ki: f32,
+        kd: f32,
+        coldstart: bool,
+    ) -> Self {
         Self {
             current_boiler_temp: 0.0,
             target_boiler_temp,
@@ -17,6 +28,7 @@ impl State {
             kp,
             ki,
             kd,
+            coldstart,
         }
     }
 
@@ -62,5 +74,13 @@ impl State {
     }
     pub fn set_kd(&mut self, kd: f32) {
         self.kd = kd;
+    }
+
+    pub fn in_coldstart(&self) -> bool {
+        self.coldstart
+    }
+
+    pub fn disable_coldstart(&mut self) {
+        self.coldstart = false;
     }
 }

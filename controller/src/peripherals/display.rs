@@ -14,44 +14,74 @@ use nrf52840_hal::Spim;
 use ssd1351::builder::Builder;
 use ssd1351::interface::SpiInterface;
 use ssd1351::mode::GraphicsMode;
+use ili9341::Orientation;
+use ili9341::Ili9341;
+use display_interface_spi::SPIInterface;
+use embedded_graphics::{
+    fonts::{Font6x8, Text},
+    pixelcolor::Rgb565,
+    prelude::*,
+    style::{TextStyle, TextStyleBuilder},
+};
 
 pub struct Display {
-    display: GraphicsMode<SpiInterface<Spim<SPIM0>, OldOutputPin<Pin<Output<PushPull>>>>>,
-    rst: OldOutputPin<Pin<Output<PushPull>>>,
+    display: Ili9341<SPIInterface<Spim<SPIM0>, Pin<Output<PushPull>>, Pin<Output<PushPull>>>, Pin<Output<PushPull>>>,
 }
 
 impl Display {
-    pub fn new(
+    pub fn new<D: DelayMs<u16>>(
         spim: SPIM0,
         rst: Pin<Output<PushPull>>,
         dc: Pin<Output<PushPull>>,
-        _cs: Pin<Output<PushPull>>,
+        cs: Pin<Output<PushPull>>,
         sck: Pin<Output<PushPull>>,
         mosi: Pin<Output<PushPull>>,
+        timer: &mut D
     ) -> Self {
         let spi_pins = Pins {
             sck,
             mosi: Some(mosi),
             miso: None,
         };
-        let spi = Spim::new(spim, spi_pins, Frequency::M8, MODE_0, 0);
+        let spi = Spim::new(spim, spi_pins, Frequency::M16, MODE_0, 0);
 
-        let dc = OldOutputPin::new(dc);
-        let display: GraphicsMode<_> = Builder::new().connect_spi(spi, dc).into();
+        let wrapped_spi = SPIInterface::new(spi, dc, cs);
+        let mut display = Ili9341::new(
+            wrapped_spi,
+            rst,
+            timer
+        ).expect("display init failed");
+
+        display.set_orientation(Orientation::LandscapeFlipped);
 
         Self {
-            display,
-            rst: OldOutputPin::new(rst),
+            display
         }
     }
 
     pub fn init<D: DelayMs<u8>>(&mut self, timer: &mut D) {
-        self.display.reset(&mut self.rst, timer);
-        self.display.init().unwrap();
+
     }
 
     pub fn draw_screen(&mut self, state: &State) {
-        let mut curr_data = String::<U32>::from("Current: ");
+        let style = TextStyleBuilder::new(Font6x8)
+            .text_color(Rgb565::YELLOW)
+            .background_color(Rgb565::BLUE)
+            .build();
+
+// Create a text at position (20, 30) and draw it using the previously defined style
+        match Text::new("Hello Rust!", Point::new(20, 30))
+            .into_styled(style)
+            .draw(&mut self.display) {
+            Ok(_) => defmt::info!("Drawed"),
+            Err(_) => defmt::info!("Failed!"),
+        }
+
+        /*let t = Text::new("Hello Rust!", Point::new(20, 16))
+            .into_styled(TextStyle::new(Font8x16, Rgb565::GREEN));
+        t.draw(&mut self.display).expect("draw failed");*/
+
+        /*let mut curr_data = String::<U32>::from("Current: ");
         let _ = write!(curr_data, "{}°C", state.current_boiler_temp().round());
 
         let i: u16 = 0xFFFF;
@@ -100,6 +130,6 @@ impl Display {
                 .with_stroke(Some(i.into()))
                 .translate(Coord::new(0, 110))
                 .into_iter(),
-        );
+        );*/
     }
 }
