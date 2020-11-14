@@ -1,11 +1,20 @@
 use crate::State;
 use core::fmt::Write;
+use display_interface_spi::SPIInterface;
 use embedded_graphics::fonts::{Font6x12, Font8x16};
 use embedded_graphics::prelude::*;
+use embedded_graphics::{
+    fonts::{Font6x8, Text},
+    pixelcolor::Rgb565,
+    prelude::*,
+    style::{TextStyle, TextStyleBuilder},
+};
 use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::digital::v1_compat::OldOutputPin;
 use heapless::consts::*;
 use heapless::String;
+use ili9341::Ili9341;
+use ili9341::Orientation;
 use micromath::F32Ext;
 use nrf52840_hal::gpio::{Output, Pin, PushPull};
 use nrf52840_hal::pac::SPIM0;
@@ -14,18 +23,12 @@ use nrf52840_hal::Spim;
 use ssd1351::builder::Builder;
 use ssd1351::interface::SpiInterface;
 use ssd1351::mode::GraphicsMode;
-use ili9341::Orientation;
-use ili9341::Ili9341;
-use display_interface_spi::SPIInterface;
-use embedded_graphics::{
-    fonts::{Font6x8, Text},
-    pixelcolor::Rgb565,
-    prelude::*,
-    style::{TextStyle, TextStyleBuilder},
-};
 
 pub struct Display {
-    display: Ili9341<SPIInterface<Spim<SPIM0>, Pin<Output<PushPull>>, Pin<Output<PushPull>>>, Pin<Output<PushPull>>>,
+    display: Ili9341<
+        SPIInterface<Spim<SPIM0>, Pin<Output<PushPull>>, Pin<Output<PushPull>>>,
+        Pin<Output<PushPull>>,
+    >,
 }
 
 impl Display {
@@ -36,7 +39,7 @@ impl Display {
         cs: Pin<Output<PushPull>>,
         sck: Pin<Output<PushPull>>,
         mosi: Pin<Output<PushPull>>,
-        timer: &mut D
+        timer: &mut D,
     ) -> Self {
         let spi_pins = Pins {
             sck,
@@ -46,22 +49,14 @@ impl Display {
         let spi = Spim::new(spim, spi_pins, Frequency::M16, MODE_0, 0);
 
         let wrapped_spi = SPIInterface::new(spi, dc, cs);
-        let mut display = Ili9341::new(
-            wrapped_spi,
-            rst,
-            timer
-        ).expect("display init failed");
+        let mut display = Ili9341::new(wrapped_spi, rst, timer).expect("display init failed");
 
         display.set_orientation(Orientation::LandscapeFlipped);
 
-        Self {
-            display
-        }
+        Self { display }
     }
 
-    pub fn init<D: DelayMs<u8>>(&mut self, timer: &mut D) {
-
-    }
+    pub fn init<D: DelayMs<u8>>(&mut self, timer: &mut D) {}
 
     pub fn draw_screen(&mut self, state: &State) {
         let style = TextStyleBuilder::new(Font6x8)
@@ -69,10 +64,11 @@ impl Display {
             .background_color(Rgb565::BLUE)
             .build();
 
-// Create a text at position (20, 30) and draw it using the previously defined style
+        // Create a text at position (20, 30) and draw it using the previously defined style
         match Text::new("Hello Rust!", Point::new(20, 30))
             .into_styled(style)
-            .draw(&mut self.display) {
+            .draw(&mut self.display)
+        {
             Ok(_) => defmt::info!("Drawed"),
             Err(_) => defmt::info!("Failed!"),
         }

@@ -14,7 +14,6 @@ pub struct PinConfig {
 }
 
 impl PinConfig {
-
     pub fn new(p0: Parts0, p1: Parts1) -> Self {
         let sensor_vdd = Some(p1.p1_09.into_push_pull_output(Level::Low).degrade());
         let sensor_signal = Some(p0.p0_08.into_floating_input().degrade());
@@ -36,5 +35,4 @@ impl PinConfig {
             display_mosi_pin,
         }
     }
-
 }

@@ -30,7 +30,13 @@ impl Heater {
 
     pub fn control(&mut self, current_temperature: f32) -> Result<bool, HeaterError> {
         let next = self.pid.next_control_output(current_temperature);
-        defmt::info!("Next {{ output: {:f32}, p: {:f32}, i: {:f32}, d: {:f32} }}", next.output, next.p, next.i, next.d);
+        defmt::info!(
+            "Next {{ output: {:f32}, p: {:f32}, i: {:f32}, d: {:f32} }}",
+            next.output,
+            next.p,
+            next.i,
+            next.d
+        );
         if next.output > self.config.setpoint {
             self.turn_heater_on()?;
         } else {
@@ -40,15 +46,7 @@ impl Heater {
     }
 
     pub fn update_pid(&mut self, kp: f32, ki: f32, kd: f32, setpoint: f32) {
-        self.pid = Pid::new(
-            kp,
-            ki,
-            kd,
-            PID_P_LIMIT,
-            PID_I_LIMIT,
-            PID_D_LIMIT,
-            setpoint,
-        );
+        self.pid = Pid::new(kp, ki, kd, PID_P_LIMIT, PID_I_LIMIT, PID_D_LIMIT, setpoint);
     }
 
     pub fn is_on(&self) -> Result<bool, HeaterError> {

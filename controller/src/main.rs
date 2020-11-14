@@ -29,7 +29,6 @@ const START_KP: f32 = 2.0; // 50
 const START_KI: f32 = 30.0; // 0
 const START_KD: f32 = 15.0; // 130
 
-
 // startup: 60, 0.46, 0, tt: 96.0 => überschwinger auf 105.7
 // startup 80, 0.46, 0, tt: 96.0 => auf 107
 // 60, 0.25, 0, 96 =>
@@ -132,9 +131,13 @@ const APP: () = {
             .read_temperature(ctx.resources.boiler_timer)
         {
             if COLD_ENABLED {
-                if t > ctx.resources.state.target_boiler_temp() && ctx.resources.state.in_coldstart() {
+                if t > ctx.resources.state.target_boiler_temp()
+                    && ctx.resources.state.in_coldstart()
+                {
                     ctx.resources.state.disable_coldstart();
-                    ctx.resources.heater.update_pid(WARM_KP, WARM_KI, WARM_KD, TARGET_TEMP);
+                    ctx.resources
+                        .heater
+                        .update_pid(WARM_KP, WARM_KI, WARM_KD, TARGET_TEMP);
                     ctx.resources.state.set_kp(WARM_KP);
                     ctx.resources.state.set_ki(WARM_KI);
                     ctx.resources.state.set_kd(WARM_KD);
