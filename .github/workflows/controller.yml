@@ -5,8 +5,6 @@ name: Controller Continuous integration
 jobs:
   ci:
     runs-on: ubuntu-latest
-    env:
-      working-directory: ./controller
     strategy:
       matrix:
         rust:
@@ -26,13 +24,11 @@ jobs:
           target: thumbv7em-none-eabihf
 
       - uses: actions-rs/cargo@v1
-        working-directory: ${{env.working-directory}}
         with:
           command: build
           args: --target=thumbv7em-none-eabihf
 
       - uses: actions-rs/cargo@v1
-        working-directory: ${{env.working-directory}}
         with:
           command: fmt
           args: --all -- --check
