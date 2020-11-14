@@ -1,10 +1,12 @@
 on: push
 
-name: Continuous integration
+name: Controller Continuous integration
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      working-directory: ./controller
     strategy:
       matrix:
         rust:
@@ -24,21 +26,19 @@ jobs:
           target: thumbv7em-none-eabihf
 
       - uses: actions-rs/cargo@v1
+        working-directory: ${{env.working-directory}}
         with:
           command: build
           args: --target=thumbv7em-none-eabihf
 
       - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --examples --target=thumbv7em-none-eabihf
-
-      - uses: actions-rs/cargo@v1
+        working-directory: ${{env.working-directory}}
         with:
           command: fmt
           args: --all -- --check
 
       - uses: actions-rs/clippy-check@v1
+        working-directory: ${{env.working-directory}}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
