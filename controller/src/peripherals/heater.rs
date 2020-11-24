@@ -1,52 +1,67 @@
 //! Contains the PID-controlled heater
 
+use crate::pid::{Direction, Pid, Proportional};
 use nrf52840_hal::gpio::{Output, Pin, PushPull};
 use nrf52840_hal::prelude::*;
-use pid::Pid;
-
-const PID_P_LIMIT: f32 = 9999.0;
-const PID_I_LIMIT: f32 = 9999.0;
-const PID_D_LIMIT: f32 = 9999.0;
 
 pub struct Heater {
     pin: Pin<Output<PushPull>>,
-    config: HeaterConfig,
-    pid: Pid<f32>,
+    pid: Pid,
+    window_size: u32,
+    isr_counter: u32,
+    last_output: f32,
 }
 
 impl Heater {
     pub fn new(pin: Pin<Output<PushPull>>, config: HeaterConfig) -> Self {
-        let pid = Pid::new(
+        let window_size = config.window_size;
+
+        let mut pid = Pid::new(
+            config.setpoint,
             config.kp,
             config.ki,
             config.kd,
-            PID_P_LIMIT,
-            PID_I_LIMIT,
-            PID_D_LIMIT,
-            config.setpoint,
+            Proportional::OnMeasurement,
+            Direction::Direct,
         );
-        Self { pin, pid, config }
+        pid.set_mode(crate::pid::Mode::Automatic);
+        pid.set_sample_time(window_size);
+        pid.set_output_limits(0.0, window_size as f32);
+        Self {
+            pin,
+            pid,
+            window_size,
+            isr_counter: 0,
+            last_output: 0.0,
+        }
     }
 
     pub fn control(&mut self, current_temperature: f32) -> Result<bool, HeaterError> {
-        let next = self.pid.next_control_output(current_temperature);
-        defmt::info!(
-            "Next {{ output: {:f32}, p: {:f32}, i: {:f32}, d: {:f32} }}",
-            next.output,
-            next.p,
-            next.i,
-            next.d
-        );
-        if next.output > self.config.setpoint {
-            self.turn_heater_on()?;
-        } else {
+        if self.last_output <= self.isr_counter as f32 {
             self.turn_heater_off()?;
+        } else {
+            self.turn_heater_on()?;
         }
+
+        self.isr_counter += 20;
+        if self.isr_counter > self.window_size {
+            self.isr_counter = 0;
+            self.last_output = self.pid.compute(current_temperature).unwrap();
+
+            defmt::info!(
+                "Next {{ output: {:f32}, p: {:f32}, i: {:f32}, d: {:f32} }}",
+                self.last_output,
+                self.pid.get_kp(),
+                self.pid.get_ki(),
+                self.pid.get_kd(),
+            );
+        }
+
         Ok(self.is_on()?)
     }
 
-    pub fn update_pid(&mut self, kp: f32, ki: f32, kd: f32, setpoint: f32) {
-        self.pid = Pid::new(kp, ki, kd, PID_P_LIMIT, PID_I_LIMIT, PID_D_LIMIT, setpoint);
+    pub fn update_pid(&mut self, kp: f32, ki: f32, kd: f32, pon: Proportional) {
+        self.pid.set_tunings(kp, ki, kd, pon);
     }
 
     pub fn is_on(&self) -> Result<bool, HeaterError> {
@@ -73,15 +88,17 @@ pub struct HeaterConfig {
     ki: f32,
     kd: f32,
     setpoint: f32,
+    window_size: u32,
 }
 
 impl HeaterConfig {
-    pub fn new(setpoint: f32, kp: f32, ki: f32, kd: f32) -> Self {
+    pub fn new(setpoint: f32, kp: f32, ki: f32, kd: f32, window_size: u32) -> Self {
         Self {
             kp,
             ki,
             kd,
             setpoint,
+            window_size,
         }
     }
 }

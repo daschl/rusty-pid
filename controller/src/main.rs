@@ -3,12 +3,14 @@
 
 mod config;
 mod peripherals;
+mod pid;
 mod state;
 
 #[allow(unused_imports)]
 use defmt_rtt as _GlobalLogger;
 #[allow(unused_imports)]
 use nrf52840_hal as _MemoryLayout;
+use pid::Proportional;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 use nrf52840_hal::clocks::{Clocks, HFCLK_FREQ as CPU_FREQ};
@@ -22,24 +24,20 @@ use rtic::cyccnt::U32Ext;
 use state::State;
 
 const ONE_SECOND: u32 = CPU_FREQ; // 1s => CPU runs at 64 mhz
+const HALF_SECOND: u32 = ONE_SECOND / 2;
+const TWENTY_MILLIS: u32 = ONE_SECOND / 1000 * 20; // div by 1000 => 1 millis, * 20 => 20 millis
 
 const TARGET_TEMP: f32 = 95.0;
 
-const START_KP: f32 = 2.0; // 50
-const START_KI: f32 = 30.0; // 0
-const START_KD: f32 = 15.0; // 130
+const START_KP: f32 = 200.0;
+const START_KI: f32 = 0.05;
+const START_KD: f32 = 0.0;
 
-// startup: 60, 0.46, 0, tt: 96.0 => überschwinger auf 105.7
-// startup 80, 0.46, 0, tt: 96.0 => auf 107
-// 60, 0.25, 0, 96 =>
+const WARM_KP: f32 = 69.0;
+const WARM_KI: f32 = 0.17;
+const WARM_KD: f32 = 0.0;
 
-// start: 60, 0.25, 0
-
-const WARM_KP: f32 = 66.0;
-const WARM_KI: f32 = 0.0; // 0.13
-const WARM_KD: f32 = 10.0;
-
-const COLD_ENABLED: bool = false;
+const COLD_ENABLED: bool = true;
 
 #[rtic::app(device = nrf52840_hal::pac, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -51,7 +49,7 @@ const APP: () = {
         state: State,
     }
 
-    #[init(spawn = [boiler_measure_temperature, draw_display])]
+    #[init(spawn = [boiler_measure_temperature, draw_display, heater_drive_on_off])]
     fn init(mut ctx: init::Context) -> init::LateResources {
         // Preparations Needed for Bluetooth
         let _ = Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
@@ -81,9 +79,9 @@ const APP: () = {
         let ki = START_KI;
         let kd = START_KD;
 
-        let heater_config = HeaterConfig::new(target_temp, kp, ki, kd);
+        let heater_config = HeaterConfig::new(target_temp, kp, ki, kd, 1000);
 
-        let mut boiler_timer = Timer::new(ctx.device.TIMER1);
+        let boiler_timer = Timer::new(ctx.device.TIMER1);
 
         let display = Display::new(
             ctx.device.SPIM0,
@@ -92,7 +90,6 @@ const APP: () = {
             display_cs_pin,
             display_sck_pin,
             display_mosi_pin,
-            &mut boiler_timer,
         );
 
         let heater = Heater::new(heater_signal, heater_config);
@@ -100,6 +97,7 @@ const APP: () = {
 
         ctx.spawn.boiler_measure_temperature().unwrap();
         ctx.spawn.draw_display(true).unwrap();
+        ctx.spawn.heater_drive_on_off().unwrap();
 
         init::LateResources {
             boiler: Boiler::new(sensor_signal, sensor_vdd),
@@ -113,10 +111,12 @@ const APP: () = {
     #[task(resources= [display, boiler_timer, state], priority = 2, schedule = [draw_display])]
     fn draw_display(ctx: draw_display::Context, init: bool) {
         if init {
+            defmt::info!("Init display");
             ctx.resources.display.init(ctx.resources.boiler_timer);
         }
 
-        // ctx.resources.display.draw_screen(ctx.resources.state);
+        defmt::info!("Draw");
+        ctx.resources.display.draw_screen(ctx.resources.state);
 
         ctx.schedule
             .draw_display(ctx.scheduled + ONE_SECOND.cycles(), false)
@@ -130,23 +130,24 @@ const APP: () = {
             .boiler
             .read_temperature(ctx.resources.boiler_timer)
         {
+            ctx.resources.state.set_current_boiler_temp(t);
+
             if COLD_ENABLED {
                 if t > ctx.resources.state.target_boiler_temp()
                     && ctx.resources.state.in_coldstart()
                 {
                     ctx.resources.state.disable_coldstart();
-                    ctx.resources
-                        .heater
-                        .update_pid(WARM_KP, WARM_KI, WARM_KD, TARGET_TEMP);
+                    ctx.resources.heater.update_pid(
+                        WARM_KP,
+                        WARM_KI,
+                        WARM_KD,
+                        Proportional::OnError,
+                    );
                     ctx.resources.state.set_kp(WARM_KP);
                     ctx.resources.state.set_ki(WARM_KI);
                     ctx.resources.state.set_kd(WARM_KD);
                 }
             }
-
-            let heater_on = ctx.resources.heater.control(t).ok().unwrap();
-            ctx.resources.state.set_current_boiler_temp(t);
-            ctx.resources.state.set_heater_on(heater_on);
         } else {
             defmt::warn!("Temp read failed");
             // Turn the heater off until we get a good new reading for safety reasons.
@@ -157,7 +158,22 @@ const APP: () = {
         defmt::info!("{:?}", ctx.resources.state);
 
         ctx.schedule
-            .boiler_measure_temperature(ctx.scheduled + ONE_SECOND.cycles())
+            .boiler_measure_temperature(ctx.scheduled + HALF_SECOND.cycles())
+            .unwrap();
+    }
+
+    #[task(resources = [heater, state], priority = 2, schedule = [heater_drive_on_off])]
+    fn heater_drive_on_off(ctx: heater_drive_on_off::Context) {
+        let heater_on = ctx
+            .resources
+            .heater
+            .control(ctx.resources.state.current_boiler_temp())
+            .ok()
+            .unwrap();
+        ctx.resources.state.set_heater_on(heater_on);
+
+        ctx.schedule
+            .heater_drive_on_off(ctx.scheduled + TWENTY_MILLIS.cycles())
             .unwrap();
     }
 
