@@ -5,6 +5,7 @@ use defmt::Format;
 pub struct State {
     current_boiler_temp: f32,
     target_boiler_temp: f32,
+    last_pid_out: f32,
     heater_on: bool,
     kp: f32,
     ki: f32,
@@ -24,6 +25,7 @@ impl State {
         Self {
             current_boiler_temp: 0.0,
             target_boiler_temp,
+            last_pid_out: 0.0,
             heater_on,
             kp,
             ki,
@@ -34,6 +36,10 @@ impl State {
 
     pub fn set_current_boiler_temp(&mut self, current_boiler_temp: f32) {
         self.current_boiler_temp = current_boiler_temp;
+    }
+
+    pub fn set_last_pid_out(&mut self, pid_out: f32) {
+        self.last_pid_out = pid_out;
     }
 
     pub fn current_boiler_temp(&self) -> f32 {
@@ -82,5 +88,9 @@ impl State {
 
     pub fn disable_coldstart(&mut self) {
         self.coldstart = false;
+    }
+
+    pub fn last_pid_out(&self) -> f32 {
+        self.last_pid_out
     }
 }

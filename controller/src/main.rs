@@ -30,7 +30,7 @@ const TWENTY_MILLIS: u32 = ONE_SECOND / 1000 * 20; // div by 1000 => 1 millis, *
 const TARGET_TEMP: f32 = 95.0;
 
 const START_KP: f32 = 200.0;
-const START_KI: f32 = 0.05;
+const START_KI: f32 = 0.03;
 const START_KD: f32 = 0.0;
 
 const WARM_KP: f32 = 69.0;
@@ -171,6 +171,9 @@ const APP: () = {
             .ok()
             .unwrap();
         ctx.resources.state.set_heater_on(heater_on);
+        ctx.resources
+            .state
+            .set_last_pid_out(ctx.resources.heater.last_output());
 
         ctx.schedule
             .heater_drive_on_off(ctx.scheduled + TWENTY_MILLIS.cycles())

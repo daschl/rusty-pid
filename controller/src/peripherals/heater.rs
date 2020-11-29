@@ -47,14 +47,6 @@ impl Heater {
         if self.isr_counter > self.window_size {
             self.isr_counter = 0;
             self.last_output = self.pid.compute(current_temperature).unwrap();
-
-            defmt::info!(
-                "Next {{ output: {:f32}, p: {:f32}, i: {:f32}, d: {:f32} }}",
-                self.last_output,
-                self.pid.get_kp(),
-                self.pid.get_ki(),
-                self.pid.get_kd(),
-            );
         }
 
         Ok(self.is_on()?)
@@ -66,6 +58,10 @@ impl Heater {
 
     pub fn is_on(&self) -> Result<bool, HeaterError> {
         self.pin.is_set_high().map_err(|_| HeaterError::PinError)
+    }
+
+    pub fn last_output(&self) -> f32 {
+        self.last_output
     }
 
     fn turn_heater_on(&mut self) -> Result<(), HeaterError> {

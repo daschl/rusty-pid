@@ -102,6 +102,19 @@ impl Display {
             .draw(&mut self.display)
             .unwrap();
 
+        let mut out_data = String::<U32>::from("PID Output: ");
+        let _ = write!(out_data, "{}", state.last_pid_out().round());
+
+        let style = TextStyleBuilder::new(Font6x8)
+            .text_color(Gray4::WHITE)
+            .background_color(Gray4::BLACK)
+            .build();
+
+        Text::new(out_data.as_str(), Point::new(0, 50))
+            .into_styled(style)
+            .draw(&mut self.display)
+            .unwrap();
+
         let mut pid_data = String::<U32>::from("");
         let _ = write!(
             pid_data,
@@ -116,7 +129,7 @@ impl Display {
             .background_color(Gray4::BLACK)
             .build();
 
-        Text::new(pid_data.as_str(), Point::new(0, 50))
+        Text::new(pid_data.as_str(), Point::new(0, 60))
             .into_styled(style)
             .draw(&mut self.display)
             .unwrap();

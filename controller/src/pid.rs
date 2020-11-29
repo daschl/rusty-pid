@@ -150,18 +150,6 @@ impl Pid {
         }
         self.direction = direction;
     }
-
-    pub fn get_kp(&self) -> f32 {
-        self.kp
-    }
-
-    pub fn get_ki(&self) -> f32 {
-        self.ki
-    }
-
-    pub fn get_kd(&self) -> f32 {
-        self.kd
-    }
 }
 
 #[derive(PartialEq)]
