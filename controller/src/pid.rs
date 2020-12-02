@@ -79,7 +79,7 @@ impl Pid {
 
         self.last_input = input;
 
-        return Ok(output);
+        Ok(output)
     }
 
     pub fn set_tunings(&mut self, kp: f32, ki: f32, kd: f32, pon: Proportional) {

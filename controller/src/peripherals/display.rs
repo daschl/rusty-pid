@@ -17,9 +17,13 @@ use nrf52840_hal::spim::{Frequency, Pins, MODE_0};
 use nrf52840_hal::Spim;
 use ssd1327::display::Ssd1327;
 
+type InnerDisplay =
+    Ssd1327<SPIInterface<Spim<SPIM0>, Pin<Output<PushPull>>, Pin<Output<PushPull>>>>;
+
 pub struct Display {
-    display: Ssd1327<SPIInterface<Spim<SPIM0>, Pin<Output<PushPull>>, Pin<Output<PushPull>>>>,
+    display: InnerDisplay,
     rst: Pin<Output<PushPull>>,
+    alive_pixel: bool,
 }
 
 impl Display {
@@ -40,12 +44,16 @@ impl Display {
         let spii = SPIInterface::new(spi, dc, cs);
         let display = Ssd1327::new(spii);
 
-        Self { display, rst }
+        Self {
+            display,
+            rst,
+            alive_pixel: false,
+        }
     }
 
     pub fn init<D: DelayMs<u8>>(&mut self, timer: &mut D) {
-        self.display.reset(&mut self.rst, timer).unwrap();
-        self.display.init().unwrap();
+        self.display.reset(&mut self.rst, timer).ok();
+        self.display.init().ok();
     }
 
     pub fn draw_screen(&mut self, state: &State) {
@@ -58,7 +66,7 @@ impl Display {
         Rectangle::new(Point::zero(), Point::new(127, 127))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
         let mut curr_data = String::<U32>::from("Current: ");
         let _ = write!(curr_data, "{}°C", state.current_boiler_temp().round());
@@ -71,7 +79,7 @@ impl Display {
         Text::new(curr_data.as_str(), Point::new(0, 0))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
         let mut target_data = String::<U32>::from("Target:  ");
         let _ = write!(target_data, "{}°C", state.target_boiler_temp().round());
@@ -84,7 +92,7 @@ impl Display {
         Text::new(target_data.as_str(), Point::new(0, 30))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
         let heater_msg = if state.heater_on() {
             "Heater:  On"
@@ -100,7 +108,7 @@ impl Display {
         Text::new(heater_msg, Point::new(0, 40))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
         let mut out_data = String::<U32>::from("PID Output: ");
         let _ = write!(out_data, "{}", state.last_pid_out().round());
@@ -113,7 +121,7 @@ impl Display {
         Text::new(out_data.as_str(), Point::new(0, 50))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
         let mut pid_data = String::<U32>::from("");
         let _ = write!(
@@ -132,8 +140,22 @@ impl Display {
         Text::new(pid_data.as_str(), Point::new(0, 60))
             .into_styled(style)
             .draw(&mut self.display)
-            .unwrap();
+            .ok();
 
-        self.display.flush().unwrap();
+        if self.alive_pixel {
+            Text::new("<>", Point::new(0, 100))
+                .into_styled(style)
+                .draw(&mut self.display)
+                .ok();
+            self.alive_pixel = false;
+        } else {
+            Text::new("><", Point::new(0, 100))
+                .into_styled(style)
+                .draw(&mut self.display)
+                .ok();
+            self.alive_pixel = true;
+        }
+
+        self.display.flush().ok();
     }
 }
