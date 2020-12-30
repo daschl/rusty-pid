@@ -29,9 +29,13 @@ Both controller and SSR are located in the front section of the machine, behind 
 
 <img src="/docs/controller-and-ssr.jpg" alt="Controller and SSRs" height="400" />
 
-The temperature sensor sits on top of the boiler and is glued down with a :
+The temperature sensor sits on top of the boiler and is glued down with a 2-component heat adhesive glue (i.e. Hernon 746):
 
 <img src="/docs/temp-sensor.jpg" alt="Temp sensor on top of the boiler" height="400" />
+
+The SSR opens/closes the circuit instead of the original brew temperature sensor:
+
+<img src="/docs/ssr-connection.jpg" alt="SSR Connection" height="400" />
 
 ## I want to do the same!
 
