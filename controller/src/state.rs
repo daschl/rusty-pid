@@ -11,6 +11,7 @@ pub struct State {
     ki: f32,
     kd: f32,
     coldstart: bool,
+    watchdog_reset: bool,
 }
 
 impl State {
@@ -21,6 +22,7 @@ impl State {
         ki: f32,
         kd: f32,
         coldstart: bool,
+        watchdog_reset: bool,
     ) -> Self {
         Self {
             current_boiler_temp: 0.0,
@@ -31,6 +33,7 @@ impl State {
             ki,
             kd,
             coldstart,
+            watchdog_reset,
         }
     }
 
@@ -56,6 +59,14 @@ impl State {
 
     pub fn set_heater_on(&mut self, heater_on: bool) {
         self.heater_on = heater_on;
+    }
+
+    pub fn set_watchdog_reset(&mut self, reset: bool) {
+        self.watchdog_reset = reset;
+    }
+
+    pub fn watchdog_reset(&self) -> bool {
+        self.watchdog_reset
     }
 
     pub fn heater_on(&self) -> bool {

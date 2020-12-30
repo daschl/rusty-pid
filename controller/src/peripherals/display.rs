@@ -156,6 +156,13 @@ impl Display {
             self.alive_pixel = true;
         }
 
+        if state.watchdog_reset() {
+            Text::new("!! WOOF !! RESET BY WATCHDOG !!", Point::new(0, 110))
+                .into_styled(style)
+                .draw(&mut self.display)
+                .ok();
+        }
+
         self.display.flush().ok();
     }
 }

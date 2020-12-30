@@ -10,7 +10,7 @@ nb = "1.0"
 cortex-m = "0.6.2"
 cortex-m-rtic = "0.5.0"
 nrf52840-hal = "0.12"
-tsic = "0.2"
+tsic = { path = "/Users/michaelnitschinger/private/code/rust/tsic-rs" }
 micromath = "1.1"
 ssd1327 = { git = "https://github.com/daschl/ssd1327.git", branch = "main" }
 embedded-graphics = "0.6"
@@ -21,9 +21,19 @@ defmt = "0.1.0"
 defmt-rtt = "0.1.0"
 panic-probe = { version = "0.1.0", features = ["print-defmt"] }
 groundhog-nrf52 = "0.2.0"
+ili9341 = "0.4"
+
+[[bin]]
+name = "d2"
+path = "bin/d2.rs"
+
+[[bin]]
+name = "controller"
+path = "src/main.rs"
 
 [features]
 default = [
+  "tsic/defmt-default",
   "defmt-default",
 ]
 

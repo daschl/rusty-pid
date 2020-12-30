@@ -6,6 +6,7 @@ mod peripherals;
 mod pid;
 mod state;
 
+use cortex_m::peripheral::SCB;
 #[allow(unused_imports)]
 use defmt_rtt as _;
 #[allow(unused_imports)]
@@ -16,6 +17,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use groundhog_nrf52::GlobalRollingTimer;
 use nrf52840_hal::gpio::{p0, p1};
 use nrf52840_hal::pac::TIMER1;
+use nrf52840_hal::wdt::{count, handles::Hdl0, Parts, Watchdog, WatchdogHandle};
 use nrf52840_hal::Timer;
 use panic_probe as _;
 use peripherals::boiler::Boiler;
@@ -29,7 +31,7 @@ const TWENTY_MILLIS: i32 = ONE_SECOND / 1000 * 20; // div by 1000 => 1 millis, *
 
 const TARGET_TEMP: f32 = 95.0;
 
-const START_KP: f32 = 200.0;
+const START_KP: f32 = 250.0;
 const START_KI: f32 = 0.03;
 const START_KD: f32 = 0.0;
 
@@ -47,6 +49,7 @@ const APP: () = {
         heater: Heater,
         display: Display,
         state: State,
+        watchdog_handle: WatchdogHandle<Hdl0>,
     }
 
     #[init(spawn = [boiler_measure_temperature, draw_display, heater_drive_on_off])]
@@ -89,8 +92,58 @@ const APP: () = {
             display_mosi_pin,
         );
 
-        let heater = Heater::new(heater_signal, heater_config);
-        let state = State::new(target_temp, heater.is_on().ok().unwrap(), kp, ki, kd, true);
+        let mut heater = Heater::new(heater_signal, heater_config);
+        // Turn the heater off after startup for security reasons
+        heater.turn_heater_off().ok();
+
+        let mut state = State::new(
+            target_temp,
+            heater.is_on().ok().unwrap(),
+            kp,
+            ki,
+            kd,
+            true,
+            false,
+        );
+
+        // Watchdog Setup
+        let (watchdog_handle, ..) = match Watchdog::try_new(ctx.device.WDT) {
+            Ok(mut watchdog) => {
+                // Set the watchdog to timeout after 3 seconds (in 32.768kHz ticks)
+                watchdog.set_lfosc_ticks(3 * 32768);
+
+                let Parts {
+                    watchdog: _watchdog,
+                    handles,
+                } = watchdog.activate::<count::One>();
+
+                handles
+            }
+            Err(wdt) => match Watchdog::try_recover::<count::One>(wdt) {
+                Ok(Parts { mut handles, .. }) => {
+                    defmt::debug!("Watchdog: already active, but recovering!");
+                    // Pet the handles on the recovering watchdog early, since it is
+                    // already running and counting.
+                    handles.0.pet();
+                    handles
+                }
+                Err(_wdt) => {
+                    defmt::debug!("Watchdog: already active, resetting!");
+                    loop {
+                        continue;
+                    }
+                }
+            },
+        };
+
+        if ctx.device.POWER.resetreas.read().dog().is_detected() {
+            ctx.device.POWER.resetreas.modify(|_r, w| {
+                // Clear the watchdog reset reason bit
+                w.dog().set_bit()
+            });
+            defmt::warn!("Controller got restarted by the watchdog!");
+            state.set_watchdog_reset(true);
+        }
 
         ctx.spawn.boiler_measure_temperature().ok();
         ctx.spawn.draw_display(true).ok();
@@ -102,6 +155,7 @@ const APP: () = {
             heater,
             display,
             state,
+            watchdog_handle,
         }
     }
 
@@ -118,8 +172,10 @@ const APP: () = {
             .unwrap();
     }
 
-    #[task(resources = [boiler, boiler_timer, heater, state], priority = 2, schedule = [boiler_measure_temperature])]
+    #[task(resources = [boiler, boiler_timer, heater, state, watchdog_handle], priority = 2, schedule = [boiler_measure_temperature])]
     fn boiler_measure_temperature(ctx: boiler_measure_temperature::Context) {
+        defmt::debug!("Measuring Temperature");
+
         if let Ok(t) = ctx
             .resources
             .boiler
@@ -140,13 +196,16 @@ const APP: () = {
                 ctx.resources.state.set_kd(WARM_KD);
             }
         } else {
-            //defmt::warn!("Temp read failed");
+            defmt::warn!("Reading temperature failed!");
             // Turn the heater off until we get a good new reading for safety reasons.
             ctx.resources.heater.turn_heater_off().ok();
             ctx.resources.state.set_heater_on(false);
         }
 
-        //defmt::info!("{:?}", ctx.resources.state);
+        // Pet the watchdog so it doesn't cause a reset
+        ctx.resources.watchdog_handle.pet();
+
+        defmt::debug!("{:?}", ctx.resources.state);
 
         ctx.schedule
             .boiler_measure_temperature(ctx.scheduled + HALF_SECOND)
@@ -195,7 +254,11 @@ fn timestamp() -> u64 {
 
 #[defmt::panic_handler]
 fn panic() -> ! {
-    cortex_m::asm::udf()
+    if cfg!(debug_assertions) {
+        cortex_m::asm::udf()
+    } else {
+        SCB::sys_reset()
+    }
 }
 
 /// Terminates the application and makes `probe-run` exit with exit-code = 0
