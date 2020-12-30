@@ -21,6 +21,14 @@ This repository right now contains two modules:
  - `controller`: the main embedded controller which lives inside the machine and is the heart and brain.
  - `ui`: working on a iOS app to monitor and configure the controller via BLE (Bluetooth Low Energy).
 
+## Controller
+
+The controller is a [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062) that runs [RTIC](https://rtic.rs). It measures the boiler temperature through a [TSIC 306](https://www.ist-ag.com/sites/default/files/DTTSic20x_30x_E.pdf) sensor and controls the heater through a [Carlo Gavazzi RA4850 SSR](https://eu.mouser.com/ProductDetail/Carlo-Gavazzi/RA4850-D12?qs=xZ%2FP%252Ba9zWqbxbkVxBjta9Q==).
+
+Both controller and SSR are located in the front section of the machine, behind the front plate:
+
+<img src="/docs/controller-and-ssr.jpg" alt="Controller and SSRs" height="400" />
+
 ## I want to do the same!
 
 If you are interested, right now the best way to get in touch is probably via [Twitter](https://twitter.com/daschl), because I haven't had the chance to write up a full guide. Also, check out my [blog](https://nitschinger.at/) where I try to write up my experiences and progress for this project.
