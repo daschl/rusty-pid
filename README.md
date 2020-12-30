@@ -25,9 +25,13 @@ This repository right now contains two modules:
 
 The controller is a [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062) that runs [RTIC](https://rtic.rs). It measures the boiler temperature through a [TSIC 306](https://www.ist-ag.com/sites/default/files/DTTSic20x_30x_E.pdf) sensor and controls the heater through a [Carlo Gavazzi RA4850 SSR](https://eu.mouser.com/ProductDetail/Carlo-Gavazzi/RA4850-D12?qs=xZ%2FP%252Ba9zWqbxbkVxBjta9Q==).
 
-Both controller and SSR are located in the front section of the machine, behind the front plate:
+Both controller and SSR are located in the front section of the machine, behind the front plate (right next to the solenoid valve):
 
 <img src="/docs/controller-and-ssr.jpg" alt="Controller and SSRs" height="400" />
+
+The temperature sensor sits on top of the boiler and is glued down with a :
+
+<img src="/docs/temp-sensor.jpg" alt="Temp sensor on top of the boiler" height="400" />
 
 ## I want to do the same!
 
